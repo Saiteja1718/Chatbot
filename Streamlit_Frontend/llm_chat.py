@@ -1,158 +1,93 @@
 """
-Local LLM-based chatbot for diet and nutrition questions.
-Uses TinyLlama model running locally via Hugging Face transformers.
-No API keys required.
+Lightweight rule-based chatbot for diet and nutrition questions.
+
+This version is designed to run reliably on Streamlit Cloud without
+loading large LLM models (no torch/transformers required).
 """
 
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import warnings
+from __future__ import annotations
 
-warnings.filterwarnings("ignore")
+import textwrap
+from typing import List
 
-# Global variables to cache the model and tokenizer
-_model = None
-_tokenizer = None
-_device = None
 
-def load_model():
-    """
-    Lazily load the TinyLlama model and tokenizer.
-    Loads only once and caches for subsequent calls.
-    """
-    global _model, _tokenizer, _device
-    
-    if _model is not None and _tokenizer is not None:
-        return _model, _tokenizer, _device
-    
-    print("Loading TinyLlama model... This may take a moment on first run.")
-    
-    model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    
-    # Determine device
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {_device}")
-    
-    # Load tokenizer
-    _tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
-    # Set pad token to eos token if not set
-    if _tokenizer.pad_token is None:
-        _tokenizer.pad_token = _tokenizer.eos_token
-    
-    # Load model
-    _model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16 if _device == "cuda" else torch.float32,
-        device_map="auto" if _device == "cuda" else None,
-        low_cpu_mem_usage=True
-    )
-    
-    if _device == "cpu":
-        _model = _model.to(_device)
-    
-    _model.eval()
-    
-    print("Model loaded successfully!")
-    
-    return _model, _tokenizer, _device
+def _summarize_context(context_text: str, max_items: int = 5) -> List[str]:
+    """Extract a few recipe lines from the context to mention in answers."""
+    lines = [ln.strip() for ln in context_text.splitlines() if ln.strip()]
+    # Heuristic: only keep lines that look like recipe bullets or names
+    candidates = [
+        ln for ln in lines if "-" in ln or "Calories" in ln or "kcal" in ln
+    ]
+    return candidates[:max_items]
 
 
 def generate_chat_answer(context_text: str, history_text: str, user_message: str) -> str:
     """
-    Generate a chat response using the local LLM.
-    
+    Generate a simple, helpful text answer without using a heavy LLM.
+
     Args:
-        context_text: Text describing current recommended recipes and ingredients
-        history_text: Compact text representation of previous chat turns
-        user_message: The latest user question
-        
-    Returns:
-        The assistant's reply as a string
+        context_text: Text describing current recommended recipes and ingredients.
+        history_text: Previous turns in the conversation (not deeply parsed here).
+        user_message: The latest user question.
     """
-    try:
-        model, tokenizer, device = load_model()
-        
-        # Build the prompt using TinyLlama's chat format
-        system_prompt = """You are a helpful diet and nutrition assistant. You answer questions about recommended recipes, ingredients, substitutions, and simple modifications. Keep your answers concise and practical. If a question is unrelated to food or nutrition, politely say you don't know."""
-        
-        # Format the prompt
-        prompt = f"""<|system|>
-{system_prompt}
+    question = user_message.strip()
+    q_lower = question.lower()
 
-Current Recommendations:
-{context_text}
-</s>
-"""
-        
-        # Add conversation history if available
-        if history_text.strip():
-            # Parse history to extract only recent exchanges (last 3 to keep context manageable)
-            history_lines = history_text.strip().split('\n')
-            recent_history = history_lines[-6:] if len(history_lines) > 6 else history_lines
-            
-            for line in recent_history[:-1]:  # Exclude the current user message (it's already in user_message)
-                if line.startswith("User:"):
-                    prompt += f"<|user|>\n{line[5:].strip()}</s>\n"
-                elif line.startswith("Assistant:"):
-                    prompt += f"<|assistant|>\n{line[10:].strip()}</s>\n"
-        
-        # Add current user message
-        prompt += f"<|user|>\n{user_message}</s>\n<|assistant|>\n"
-        
-        # Tokenize
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1536)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        
-        # Generate
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=256,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True,
-                pad_token_id=tokenizer.pad_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-                repetition_penalty=1.1
-            )
-        
-        # Decode the generated tokens (excluding the prompt)
-        generated_tokens = outputs[0][inputs['input_ids'].shape[1]:]
-        response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        
-        # Clean up the response
-        response = response.strip()
-        
-        # Remove any accidental repetition of the user's question
-        if response.startswith(user_message):
-            response = response[len(user_message):].strip()
-        
-        return response if response else "I'm not sure how to answer that. Could you rephrase your question?"
-        
-    except Exception as e:
-        print(f"Error generating chat response: {e}")
-        return f"Sorry, I encountered an error: {str(e)}. Please try again."
+    # Extract a few context snippets to ground the answer
+    context_snippets = _summarize_context(context_text)
+
+    # Simple intent detection
+    if any(word in q_lower for word in ["swap", "substitute", "instead of", "alternative"]):
+        base = (
+            "You can usually substitute within the same ingredient family. "
+            "For example, swap similar proteins (chicken ↔ turkey ↔ tofu), "
+            "starches (rice ↔ quinoa ↔ pasta), or veggies with similar texture. "
+        )
+    elif any(word in q_lower for word in ["protein", "high protein", "more protein"]):
+        base = (
+            "To increase protein, emphasize dishes with lean meats, fish, eggs, "
+            "Greek yogurt, beans, or lentils. You can also slightly increase the "
+            "portion size of the protein in each meal while keeping fats and "
+            "added sugars moderate. "
+        )
+    elif any(word in q_lower for word in ["calorie", "kcal", "lose weight", "deficit"]):
+        base = (
+            "To reduce calories, keep the same meal structure but trim oils, "
+            "creamy sauces, sugary drinks, and large starchy portions. "
+            "Fill more of the plate with vegetables and lean protein. "
+        )
+    elif any(word in q_lower for word in ["budget", "cheap", "affordable", "low cost"]):
+        base = (
+            "To keep meals budget‑friendly, focus on pantry staples like beans, "
+            "lentils, eggs, frozen vegetables, oats, and rice. Choose recipes "
+            "with fewer specialty ingredients and re‑use the same items across "
+            "multiple days. "
+        )
+    else:
+        base = (
+            "Here are some general guidelines based on your current meal plan. "
+            "Aim for balanced plates with lean protein, whole‑grain or starchy "
+            "carbs, plenty of vegetables, and moderate healthy fats. Adjust "
+            "portion sizes to match your calorie and protein goals. "
+        )
+
+    if context_snippets:
+        base += "From your current plan, a few example items are:\n"
+        for snip in context_snippets:
+            base += f"- {snip}\n"
+
+    base += (
+        "\nUse these as templates: keep the structure of the meal but swap "
+        "ingredients within the same category (protein, carb, veggie, fat) "
+        "to match your tastes, allergies, or budget."
+    )
+
+    return textwrap.fill(base, width=90)
 
 
-def clear_model_cache():
+def clear_model_cache() -> None:
     """
-    Clear the model from memory to free up resources.
-    Call this if you need to release memory.
+    Kept for API compatibility with the previous implementation.
+    Nothing to clear because we no longer hold a large model in memory.
     """
-    global _model, _tokenizer, _device
-    
-    if _model is not None:
-        del _model
-        _model = None
-    
-    if _tokenizer is not None:
-        del _tokenizer
-        _tokenizer = None
-    
-    _device = None
-    
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    
-    print("Model cache cleared.")
+    return None
