@@ -64,15 +64,28 @@ My project is composed of different services (frontend,API). Therefore, our appl
 
 ## :rocket: Technologies
 The project is created with:
-* Python: 3.10.8
-* fastapi 0.88.0
-* uvicorn 0.20.0
-* scikit-learn 1.1.3
-* Pandas: 1.5.1
-* Streamlit: 1.16.0
-* streamlit-echarts 1.24.1
-* Numpy: 1.21.5
-* beautifulsoup4 4.11.1
+
+- **Language & Core**
+  - **Python**: 3.10.8
+- **Frontend**
+  - **Streamlit**: 1.16.0
+  - **streamlit-echarts**: 1.24.1
+- **Machine Learning & Data**
+  - **scikit-learn**: 1.1.3 (Nearest Neighbors recommender)
+  - **Pandas**: 1.5.1
+  - **NumPy**: 1.24.1
+- **APIs & Backend**
+  - **FastAPI**: 0.88.0 (optional REST API layer)
+  - **Uvicorn**: 0.20.0 (ASGI server)
+- **LLM & NLP**
+  - **transformers** (Hugging Face)
+  - **PyTorch (torch)**
+  - **accelerate**
+- **Web & Utilities**
+  - **requests**
+  - **beautifulsoup4** (for recipe image lookup)
+- **DevOps**
+  - **Docker** & **docker-compose** (optional containerized deployment)
 
 ![](https://img.icons8.com/color/48/null/python--v1.png)![](https://img.icons8.com/color/48/null/numpy.png)![](Assets/streamlit-icon-48x48.png)![](Assets/fastapi.ico)![](Assets/scikit-learn.ico) ![](https://img.icons8.com/color/48/null/pandas.png)
 
