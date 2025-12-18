@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from Generate_Recommendations import Generator
+from Generate_Recommendations import Generator, UNWANTED_NAME_KEYWORDS
 from random import uniform as rnd
 from ImageFinder.ImageFinder import get_images_links as find_image
 from streamlit_echarts import st_echarts
@@ -122,6 +122,13 @@ class Person:
             n_neighbors = 25
             generator=Generator(recommended_nutrition, [], {'n_neighbors': n_neighbors, 'return_distance': False})
             recommended_recipes=generator.generate().json()['output']
+
+            # Filter out clearly invalid/non-meal recipes (e.g. sauces, clean-out)
+            def is_valid_recipe(r):
+                name = str(r.get("Name", "")).lower()
+                return name and not any(kw in name for kw in [kw.lower() for kw in UNWANTED_NAME_KEYWORDS])
+
+            recommended_recipes = [r for r in recommended_recipes if is_valid_recipe(r)]
             
             # Filter by budget - STRICT enforcement (budget is required)
             if budget_per_meal:

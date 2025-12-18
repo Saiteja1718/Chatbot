@@ -1,5 +1,5 @@
 import streamlit as st
-from Generate_Recommendations import Generator
+from Generate_Recommendations import Generator, UNWANTED_NAME_KEYWORDS
 from ImageFinder.ImageFinder import get_images_links as find_image
 import pandas as pd
 from streamlit_echarts import st_echarts
@@ -76,6 +76,13 @@ class Recommendation:
             for recipe in recommendations:
                 recipe['estimated_cost'] = estimate_recipe_cost(recipe)
                 recipe['image_link']=find_image(recipe['Name'])
+
+            # Filter out clearly invalid/non-meal recipes (e.g. sauces, clean-out)
+            def is_valid_recipe(r):
+                name = str(r.get("Name", "")).lower()
+                return name and not any(kw in name for kw in [kw.lower() for kw in UNWANTED_NAME_KEYWORDS])
+
+            recommendations = [r for r in recommendations if is_valid_recipe(r)]
             
             # Filter by budget - with fallback
             if self.budget_per_recipe:
