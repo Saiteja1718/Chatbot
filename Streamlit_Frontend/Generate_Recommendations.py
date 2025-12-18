@@ -14,14 +14,26 @@ UNWANTED_NAME_KEYWORDS = [
     "hot sauce",
 ]
 
+# Extra substrings to aggressively filter out known non-meal entries
+BLOCKED_NAME_SUBSTRINGS = [
+    *[kw.lower() for kw in UNWANTED_NAME_KEYWORDS],
+    "nuevo laredo",
+]
+
+
+def is_valid_recipe_name(name: str) -> bool:
+    """Return False for clearly invalid/non-meal recipe names."""
+    if not name:
+        return False
+    name_l = str(name).lower()
+    return not any(bad in name_l for bad in BLOCKED_NAME_SUBSTRINGS)
+
 
 def _filter_valid_recipes(df: pd.DataFrame) -> pd.DataFrame:
     if "Name" not in df.columns:
         return df
 
-    mask = pd.Series(True, index=df.index)
-    for kw in UNWANTED_NAME_KEYWORDS:
-        mask &= ~df["Name"].str.contains(kw, case=False, na=False)
+    mask = df["Name"].apply(is_valid_recipe_name)
     return df[mask]
 
 
