@@ -5,7 +5,9 @@ import pandas as pd
 from model import recommend,output_recommended_recipes
 
 
-dataset=pd.read_csv('../Data/dataset.csv',compression='gzip')
+# Use the enhanced dataset with cuisine information; this keeps the project
+# smaller by avoiding duplicate raw datasets.
+dataset = pd.read_csv('../Data/dataset_enhanced.csv', compression='gzip')
 
 app = FastAPI()
 

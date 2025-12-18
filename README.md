@@ -78,22 +78,67 @@ The project is created with:
 
 ## :whale: Setup
 
-### Run it locally
-#### Clone the repo
-```
-$ git clone https://github.com/zakaria-narjis/Diet-Recommendation-System
-```
-### docker-compose
-In the project root run:
-```
-$ docker-compose up -d --build
-```
-Then open http://localhost:8501 and enjoy :smiley:.
+### Run it locally (Python)
 
-PS: You should have docker and docker-compose already installed
-### Use the hosted version on Streamlit Cloud
+#### 1. Clone the repo
 
-https://diet-recommendation-system.streamlit.app/
+```bash
+git clone <YOUR_GITHUB_REPO_URL>
+cd Diet-Recommendation-System-main
+```
+
+#### 2. Create and activate a virtual environment (recommended)
+
+Windows (PowerShell):
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate
+```
+
+macOS / Linux:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+#### 3. Install dependencies
+
+From the project root:
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+This installs Streamlit, scikit-learn, the local recommendation engine, and the LLM helpers.
+
+#### 4. Start the Streamlit application
+
+```bash
+cd Streamlit_Frontend
+streamlit run Hello.py
+```
+
+Then open `http://localhost:8501` in your browser and use:
+
+- `💪 Diet Recommendation` for automatic diet plans
+- `🔍 Custom Food Recommendation` for macro-targeted recipes
+- `🍽️ Meal Planner` for multi-day AI meal plans with budgets and shopping lists
+
+> Note: The recommendation engine loads recipes from `Data/dataset_enhanced.csv`.  
+> This file is included in the repo and is required for recommendations to work.
+
+### Optional: Run with Docker Compose
+
+If you prefer containers, you can still run the original multi-service setup:
+
+```bash
+docker-compose up -d --build
+```
+
+Then open `http://localhost:8501`. You need Docker Desktop and docker‑compose installed for this option.
 
 ## Citation
 ```

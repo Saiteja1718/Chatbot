@@ -8,10 +8,31 @@ from llm_chat import generate_chat_answer
 from Generate_Recommendations import Generator
 from ImageFinder.ImageFinder import get_images_links as find_image
 import pandas as pd
-from shopping_list_generator import generate_shopping_list, format_shopping_list_markdown, estimate_recipe_cost, estimate_shopping_cost
+from shopping_list_generator import (
+    generate_shopping_list,
+    format_shopping_list_markdown,
+    estimate_recipe_cost,
+    estimate_shopping_cost,
+)
 import json
 
 st.set_page_config(page_title="AI Meal Planner", page_icon="🍽️", layout="wide")
+
+# Globally hide Streamlit alert popups (success / warning / error) on this page.
+# This ensures that intermediate "Found X recipes..." messages never appear
+# while generating recommendations.
+st.markdown(
+    """
+    <style>
+    .stAlert {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# When generating plans we only want to show the main spinner message in the UI.
+# Set this to True if you ever need detailed debug messages while generating.
+SHOW_GENERATION_DEBUG_MESSAGES = False
 
 # Session state initialization
 if 'planner_stage' not in st.session_state:
@@ -176,8 +197,19 @@ def generate_meal_plan_with_llm():
     
     # Add some randomization to nutrition targets for variety
     import random
-    
+
+    # During generation we want a clean UI with only the main spinner text.
+    # Some helper code paths may still call st.success / st.warning / st.error,
+    # so we temporarily silence those methods while generating the plan.
+    original_success = st.success
+    original_warning = st.warning
+    original_error = st.error
+
     with st.spinner(f'🔮 Generating your {num_days}-day meal plan...'):
+        st.success = lambda *args, **kwargs: None
+        st.warning = lambda *args, **kwargs: None
+        st.error = lambda *args, **kwargs: None
+
         for day in range(1, num_days + 1):
             meal_plan[f'Day {day}'] = {}
             
@@ -289,12 +321,14 @@ def generate_meal_plan_with_llm():
                                 
                                 if cuisine_filtered:
                                     recipes = cuisine_filtered
-                                    cuisine_names = '/'.join(cuisines)
-                                    st.success(f"✅ Found {len(cuisine_filtered)} {cuisine_names} recipes for {meal_name}")
                                 else:
-                                    # STRICT: If no matching cuisine found, skip this meal with error
-                                    cuisine_names = '/'.join(cuisines)
-                                    st.error(f"❌ No {cuisine_names} recipes found for {meal_name}. Skipping this meal. Try adjusting your filters or selecting 'Any' cuisine.")
+                                    # STRICT: If no matching cuisine found, skip this meal (silent in UI)
+                                    if SHOW_GENERATION_DEBUG_MESSAGES:
+                                        cuisine_names = '/'.join(cuisines)
+                                        st.error(
+                                            f"❌ No {cuisine_names} recipes found for {meal_name}. "
+                                            "Skipping this meal. Try adjusting your filters or selecting 'Any' cuisine."
+                                        )
                                     recipes = []  # Empty list will skip this meal
                                     continue
                             
@@ -309,12 +343,16 @@ def generate_meal_plan_with_llm():
                                 
                                 if protein_filtered:
                                     recipes = protein_filtered
-                                    protein_names = '/'.join([p.capitalize() for p in included_ingredients[:3]])  # Show first 3
-                                    st.success(f"✅ Found {len(protein_filtered)} {protein_names} recipes for {meal_name}")
                                 else:
-                                    # STRICT: If no matching protein found, skip this meal with error
-                                    protein_names = '/'.join([p.capitalize() for p in included_ingredients[:3]])
-                                    st.error(f"❌ No {protein_names} recipes found for {meal_name}. Skipping this meal. Try adjusting your protein preferences.")
+                                    # STRICT: If no matching protein found, skip this meal (silent in UI)
+                                    if SHOW_GENERATION_DEBUG_MESSAGES:
+                                        protein_names = '/'.join(
+                                            [p.capitalize() for p in included_ingredients[:3]]
+                                        )
+                                        st.error(
+                                            f"❌ No {protein_names} recipes found for {meal_name}. "
+                                            "Skipping this meal. Try adjusting your protein preferences."
+                                        )
                                     recipes = []  # Empty list will skip this meal
                                     continue
                             
@@ -337,9 +375,13 @@ def generate_meal_plan_with_llm():
                                 if budget_filtered:
                                     recipes = budget_filtered
                                 else:
-                                    # If no recipes within budget, take cheapest ones and warn
+                                    # If no recipes within budget, take cheapest ones
                                     recipes = sorted(recipes, key=lambda x: x['estimated_cost'])[:10]
-                                    st.warning(f"⚠️ Limited options within ${budget_per_meal:.2f}/meal budget for {meal_name}. Showing cheapest alternatives.")
+                                    if SHOW_GENERATION_DEBUG_MESSAGES:
+                                        st.warning(
+                                            f"⚠️ Limited options within ${budget_per_meal:.2f}/meal budget for {meal_name}. "
+                                            "Showing cheapest alternatives."
+                                        )
                             
                             # Find first recipe that hasn't been used yet
                             selected_recipe = None
@@ -395,17 +437,29 @@ def generate_meal_plan_with_llm():
                                 # Sort by uniqueness and pick least similar
                                 recipes_sorted = sorted(recipes, key=lambda x: x.get('name_uniqueness', 0))
                                 selected_recipe = recipes_sorted[0]
-                                st.info(f"ℹ️ Using similar recipe for variety: {selected_recipe['Name']}")
+                                if SHOW_GENERATION_DEBUG_MESSAGES:
+                                    st.info(
+                                        f"ℹ️ Using similar recipe for variety: {selected_recipe['Name']}"
+                                    )
                             
                             if selected_recipe:
                                 selected_recipe['image_link'] = find_image(selected_recipe['Name'])
                                 meal_plan[f'Day {day}'][meal_name] = selected_recipe
                             else:
-                                st.warning(f"⚠️ Could not find suitable recipe for {meal_name} on Day {day}")
+                                if SHOW_GENERATION_DEBUG_MESSAGES:
+                                    st.warning(
+                                        f"⚠️ Could not find suitable recipe for {meal_name} on Day {day}"
+                                    )
                 except Exception as e:
-                    st.error(f"Error generating {meal_name} for Day {day}: {str(e)}")
+                    if SHOW_GENERATION_DEBUG_MESSAGES:
+                        original_error(f"Error generating {meal_name} for Day {day}: {str(e)}")
                     continue
-    
+
+    # Restore original Streamlit message functions
+    st.success = original_success
+    st.warning = original_warning
+    st.error = original_error
+
     st.session_state.meal_plan = meal_plan
     st.session_state.planner_stage = 'results'
 

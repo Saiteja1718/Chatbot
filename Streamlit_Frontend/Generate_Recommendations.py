@@ -12,14 +12,12 @@ import os
 # Load dataset once at module level
 @st.cache(allow_output_mutation=True)
 def load_dataset():
-    # Try multiple paths for different deployment scenarios
+    # Try multiple paths for different deployment scenarios.
+    # We now standardize on the enhanced dataset only to keep the repo smaller.
     possible_paths = [
         os.path.join(os.path.dirname(__file__), '..', 'Data', 'dataset_enhanced.csv'),  # Local with cuisine tags
-        os.path.join(os.path.dirname(__file__), '..', 'Data', 'dataset.csv'),  # Fallback to original
         os.path.join('Data', 'dataset_enhanced.csv'),  # Streamlit Cloud
-        os.path.join('Data', 'dataset.csv'),  # Alternative
         'Data/dataset_enhanced.csv',
-        'Data/dataset.csv'
     ]
     
     for dataset_path in possible_paths:
@@ -31,7 +29,7 @@ def load_dataset():
             return df
     
     # If none found, raise error
-    raise FileNotFoundError("Could not find dataset.csv or dataset_enhanced.csv in expected locations")
+    raise FileNotFoundError("Could not find dataset_enhanced.csv in expected locations")
 
 
 def scaling(dataframe):
