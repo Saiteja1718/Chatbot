@@ -2,11 +2,25 @@ import numpy as np
 import re
 import pandas as pd
 import streamlit as st
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import NearestNeighbors
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer
 import os
+import sys
+import subprocess
+
+# Ensure scikit-learn is available (handles Streamlit Cloud environments where
+# requirements.txt might not be picked up on first build).
+try:
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import FunctionTransformer
+except ModuleNotFoundError:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "scikit-learn==1.1.3"]
+    )
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import FunctionTransformer
 
 
 # Load dataset once at module level
