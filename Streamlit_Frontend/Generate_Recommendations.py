@@ -3,24 +3,6 @@ import re
 import pandas as pd
 import streamlit as st
 import os
-import sys
-import subprocess
-
-# Ensure scikit-learn is available (handles Streamlit Cloud environments where
-# requirements.txt might not be picked up on first build).
-try:
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.neighbors import NearestNeighbors
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import FunctionTransformer
-except ModuleNotFoundError:
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "scikit-learn==1.1.3"]
-    )
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.neighbors import NearestNeighbors
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import FunctionTransformer
 
 
 # Load dataset once at module level
@@ -45,25 +27,6 @@ def load_dataset():
     # If none found, raise error
     raise FileNotFoundError("Could not find dataset_enhanced.csv in expected locations")
 
-
-def scaling(dataframe):
-    scaler = StandardScaler()
-    prep_data = scaler.fit_transform(dataframe.iloc[:, 6:15].to_numpy())
-    return prep_data, scaler
-
-
-def nn_predictor(prep_data):
-    neigh = NearestNeighbors(metric='cosine', algorithm='brute')
-    neigh.fit(prep_data)
-    return neigh
-
-
-def build_pipeline(neigh, scaler, params):
-    transformer = FunctionTransformer(neigh.kneighbors, kw_args=params)
-    pipeline = Pipeline([('std_scaler', scaler), ('NN', transformer)])
-    return pipeline
-
-
 def extract_data(dataframe, ingredients):
     extracted_data = dataframe.copy()
     extracted_data = extract_ingredient_filtered_data(extracted_data, ingredients)
@@ -78,20 +41,40 @@ def extract_ingredient_filtered_data(dataframe, ingredients):
     return extracted_data
 
 
-def apply_pipeline(pipeline, _input, extracted_data):
-    _input = np.array(_input).reshape(1, -1)
-    return extracted_data.iloc[pipeline.transform(_input)[0]]
-
-
 def recommend(dataframe, _input, ingredients=[], params={'n_neighbors': 5, 'return_distance': False}):
+    """
+    Pure NumPy implementation of the original scikit-learn pipeline:
+    - Standardize numeric nutrition columns
+    - Compute cosine similarity to the query vector
+    - Return top-k most similar recipes
+    """
     extracted_data = extract_data(dataframe, ingredients)
-    if extracted_data.shape[0] >= params['n_neighbors']:
-        prep_data, scaler = scaling(extracted_data)
-        neigh = nn_predictor(prep_data)
-        pipeline = build_pipeline(neigh, scaler, params)
-        return apply_pipeline(pipeline, _input, extracted_data)
-    else:
+    k = params.get('n_neighbors', 5)
+
+    if extracted_data.shape[0] < k:
         return None
+
+    # Numeric nutrition features are columns 6:15 in the original dataset
+    features = extracted_data.iloc[:, 6:15].to_numpy(dtype=float)
+
+    # Standardize (equivalent to StandardScaler)
+    mean = features.mean(axis=0)
+    std = features.std(axis=0)
+    std[std == 0] = 1.0
+    features_std = (features - mean) / std
+
+    # Standardize input
+    x = np.array(_input, dtype=float).reshape(1, -1)
+    x_std = (x - mean) / std
+
+    # Cosine similarity
+    x_norm = np.linalg.norm(x_std, axis=1, keepdims=True)  # (1, 1)
+    X_norm = np.linalg.norm(features_std, axis=1, keepdims=True)  # (n, 1)
+    sim = (features_std @ x_std.T) / (X_norm * x_norm + 1e-12)  # (n, 1)
+
+    # Take top-k highest similarity
+    top_k_idx = np.argsort(-sim[:, 0])[:k]
+    return extracted_data.iloc[top_k_idx]
 
 
 def extract_quoted_strings(s):
