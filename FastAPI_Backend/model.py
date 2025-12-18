@@ -2,8 +2,28 @@ import numpy as np
 import re
 
 
+UNWANTED_NAME_KEYWORDS = [
+    "clean out",
+    "cleanout",
+    "clean-out",
+    "hot sauce",
+]
+
+
+def _filter_valid_recipes(df):
+    if "Name" not in df.columns:
+        return df
+
+    mask = np.ones(len(df), dtype=bool)
+    name_series = df["Name"].astype(str)
+    for kw in UNWANTED_NAME_KEYWORDS:
+        mask &= ~name_series.str.contains(kw, case=False, na=False).to_numpy()
+    return df[mask]
+
+
 def extract_data(dataframe,ingredients):
     extracted_data=dataframe.copy()
+    extracted_data=_filter_valid_recipes(extracted_data)
     extracted_data=extract_ingredient_filtered_data(extracted_data,ingredients)
     return extracted_data
     
@@ -53,8 +73,9 @@ def extract_quoted_strings(s):
 
 def output_recommended_recipes(dataframe):
     if dataframe is not None:
-        output=dataframe.copy()
-        output=output.to_dict("records")
+        output_df = dataframe.copy()
+        output_df = _filter_valid_recipes(output_df)
+        output=output_df.to_dict("records")
         for recipe in output:
             recipe['RecipeIngredientParts']=extract_quoted_strings(recipe['RecipeIngredientParts'])
             recipe['RecipeInstructions']=extract_quoted_strings(recipe['RecipeInstructions'])

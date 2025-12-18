@@ -5,6 +5,26 @@ import streamlit as st
 import os
 
 
+# Heuristic filters to drop clearly non-food / noisy recipe names that slip
+# through from the original dataset (e.g. maintenance-related terms).
+UNWANTED_NAME_KEYWORDS = [
+    "clean out",
+    "cleanout",
+    "clean-out",
+    "hot sauce",
+]
+
+
+def _filter_valid_recipes(df: pd.DataFrame) -> pd.DataFrame:
+    if "Name" not in df.columns:
+        return df
+
+    mask = pd.Series(True, index=df.index)
+    for kw in UNWANTED_NAME_KEYWORDS:
+        mask &= ~df["Name"].str.contains(kw, case=False, na=False)
+    return df[mask]
+
+
 # Load dataset once at module level
 @st.cache(allow_output_mutation=True)
 def load_dataset():
@@ -22,6 +42,7 @@ def load_dataset():
             # Check if Cuisine column exists, if not add it as 'Other'
             if 'Cuisine' not in df.columns:
                 df['Cuisine'] = 'Other'
+            df = _filter_valid_recipes(df)
             return df
     
     # If none found, raise error
@@ -84,8 +105,11 @@ def extract_quoted_strings(s):
 
 def output_recommended_recipes(dataframe):
     if dataframe is not None:
-        output = dataframe.copy()
-        output = output.to_dict("records")
+        output_df = dataframe.copy()
+        # Apply the same name filter to be extra safe even after any
+        # intermediate filtering steps.
+        output_df = _filter_valid_recipes(output_df)
+        output = output_df.to_dict("records")
         for recipe in output:
             recipe['RecipeIngredientParts'] = extract_quoted_strings(recipe['RecipeIngredientParts'])
             recipe['RecipeInstructions'] = extract_quoted_strings(recipe['RecipeInstructions'])

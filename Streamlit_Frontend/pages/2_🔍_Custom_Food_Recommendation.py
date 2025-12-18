@@ -5,6 +5,7 @@ import pandas as pd
 from streamlit_echarts import st_echarts
 from llm_chat import generate_chat_answer
 from shopping_list_generator import generate_shopping_list, format_shopping_list_markdown, estimate_shopping_cost, estimate_recipe_cost
+import html
 
 st.set_page_config(page_title="Custom Food Recommendation", page_icon="🔍",layout="wide")
 nutrition_values=['Calories','FatContent','SaturatedFatContent','CholesterolContent','SodiumContent','CarbohydrateContent','FiberContent','SugarContent','ProteinContent']
@@ -22,6 +23,31 @@ if 'custom_chat_history' not in st.session_state:
 # Initialize chat history for other page (to prevent errors when switching)
 if 'diet_chat_history' not in st.session_state:
     st.session_state.diet_chat_history = []
+
+def recipe_image_html(recipe_name: str, image_url: str) -> str:
+    """
+    Return HTML for an image inside an expander. If the image fails to load
+    (or the URL is empty), we show the recipe name text inside the same frame.
+    """
+    safe_name = html.escape(recipe_name)
+    base_div = (
+        "width:150px;height:120px;display:flex;align-items:center;"
+        "justify-content:center;border-radius:8px;overflow:hidden;"
+        "background-color:#f5f5f5;border:1px solid #ddd;font-size:12px;"
+        "text-align:center;padding:4px;margin-bottom:4px;"
+    )
+
+    if not image_url:
+        return f"<div style='{base_div}'>{safe_name}</div>"
+
+    return f"""
+    <div style="{base_div}" data-name="{safe_name}">
+      <img src="{image_url}" alt="{safe_name}"
+           style="width:100%;height:100%;object-fit:cover;"
+           onerror="this.onerror=null;var p=this.parentElement;p.textContent=p.getAttribute('data-name');" />
+    </div>
+    """
+
 
 class Recommendation:
     def __init__(self,nutrition_list,nb_recommendations,ingredient_txt,budget_per_recipe=None):
@@ -81,7 +107,7 @@ class Display:
                         recipe_name=recipe['Name']
                         expander = st.expander(recipe_name)
                         recipe_link=recipe['image_link']
-                        recipe_img=f'<div><center><img src={recipe_link} alt={recipe_name}></center></div>'     
+                        recipe_img = recipe_image_html(recipe_name, recipe_link)
                         nutritions_df=pd.DataFrame({value:[recipe[value]] for value in nutrition_values})      
                         
                         expander.markdown(recipe_img,unsafe_allow_html=True)
