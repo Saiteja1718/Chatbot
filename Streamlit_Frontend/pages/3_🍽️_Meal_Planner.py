@@ -5,7 +5,7 @@ Interactive conversational meal planner powered by local LLM
 
 import streamlit as st
 from llm_chat import generate_chat_answer
-from Generate_Recommendations import Generator
+from Generate_Recommendations import Generator, is_valid_recipe_name
 from ImageFinder.ImageFinder import get_images_links as find_image
 import pandas as pd
 from shopping_list_generator import (
@@ -339,6 +339,11 @@ def generate_meal_plan_with_llm():
                     
                     if recommendations and recommendations.status_code == 200:
                         recipes = recommendations.json().get('output', [])
+                        # Filter out clearly invalid/non-meal recipes (e.g. sauces)
+                        recipes = [
+                            r for r in recipes
+                            if is_valid_recipe_name(r.get("Name", ""))
+                        ]
                         
                         # Add cost estimates
                         if recipes:
@@ -451,6 +456,10 @@ def generate_meal_plan_with_llm():
                                 
                                 if recommendations_alt and recommendations_alt.status_code == 200:
                                     alt_recipes = recommendations_alt.json().get('output', [])
+                                    alt_recipes = [
+                                        r for r in alt_recipes
+                                        if is_valid_recipe_name(r.get("Name", ""))
+                                    ]
                                     # Find unused recipe from alternative recommendations
                                     for recipe in alt_recipes:
                                         if recipe['Name'] not in used_recipes:
