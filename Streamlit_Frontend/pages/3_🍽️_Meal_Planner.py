@@ -15,6 +15,7 @@ from shopping_list_generator import (
     estimate_shopping_cost,
 )
 import json
+import html
 
 st.set_page_config(page_title="AI Meal Planner", page_icon="🍽️", layout="wide")
 
@@ -33,6 +34,42 @@ st.markdown(
 # When generating plans we only want to show the main spinner message in the UI.
 # Set this to True if you ever need detailed debug messages while generating.
 SHOW_GENERATION_DEBUG_MESSAGES = False
+
+
+def render_recipe_image(recipe_name: str, image_url: str) -> None:
+    """
+    Render an image for a recipe. If the image fails to load (or if no URL
+    is provided), show the recipe name inside the image frame instead.
+    """
+    safe_name = html.escape(recipe_name)
+
+    # Base container style for both real image and placeholder
+    base_div = (
+        "width:150px;height:120px;display:flex;align-items:center;"
+        "justify-content:center;border-radius:8px;overflow:hidden;"
+        "background-color:#f5f5f5;border:1px solid #ddd;font-size:12px;"
+        "text-align:center;padding:4px;"
+    )
+
+    if not image_url:
+        # No URL at all → pure text placeholder
+        st.markdown(
+            f"<div style='{base_div}'>{safe_name}</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    # When an image URL is provided, try to show it and fall back to text
+    # using a small onerror handler that replaces the container contents
+    # with the recipe name.
+    html_block = f"""
+    <div style="{base_div}" data-name="{safe_name}">
+      <img src="{image_url}" alt="{safe_name}"
+           style="width:100%;height:100%;object-fit:cover;"
+           onerror="this.onerror=null;var p=this.parentElement;p.textContent=p.getAttribute('data-name');" />
+    </div>
+    """
+    st.markdown(html_block, unsafe_allow_html=True)
 
 # Session state initialization
 if 'planner_stage' not in st.session_state:
@@ -485,8 +522,7 @@ def display_meal_plan():
                     st.markdown(f"**{meal_name.replace('_', ' ').title()}**")
                     
                     recipe_link = recipe.get('image_link', '')
-                    if recipe_link:
-                        st.image(recipe_link, width=150)
+                    render_recipe_image(recipe['Name'], recipe_link)
                     
                     recipe_name = recipe['Name']
                     st.markdown(f"*{recipe_name}*")
