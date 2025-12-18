@@ -529,11 +529,17 @@ def display_meal_plan():
             for col, (meal_name, recipe) in zip(cols, meals.items()):
                 with col:
                     st.markdown(f"**{meal_name.replace('_', ' ').title()}**")
+                    recipe_name = recipe.get('Name', '')
+                    if not is_valid_recipe_name(recipe_name):
+                        # Safety net: if an invalid/non-meal recipe slipped into an older cached plan,
+                        # hide it from the UI and ask the user to regenerate.
+                        st.markdown("*No suitable recipe found*")
+                        st.caption("This item was filtered out. Please regenerate your meal plan.")
+                        continue
                     
                     recipe_link = recipe.get('image_link', '')
-                    render_recipe_image(recipe['Name'], recipe_link)
+                    render_recipe_image(recipe_name, recipe_link)
                     
-                    recipe_name = recipe['Name']
                     st.markdown(f"*{recipe_name}*")
                     st.caption(f"⚡ {recipe['Calories']:.0f} kcal | "
                              f"🥩 {recipe['ProteinContent']:.0f}g protein")
