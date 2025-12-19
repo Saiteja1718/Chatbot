@@ -1,11 +1,9 @@
 import streamlit as st
 from Generate_Recommendations import Generator, is_valid_recipe_name
-from ImageFinder.ImageFinder import get_images_links as find_image
 import pandas as pd
 from streamlit_echarts import st_echarts
 from llm_chat import generate_chat_answer
 from shopping_list_generator import generate_shopping_list, format_shopping_list_markdown, estimate_shopping_cost, estimate_recipe_cost
-import html
 
 st.set_page_config(page_title="Custom Food Recommendation", page_icon="🔍",layout="wide")
 nutrition_values=['Calories','FatContent','SaturatedFatContent','CholesterolContent','SodiumContent','CarbohydrateContent','FiberContent','SugarContent','ProteinContent']
@@ -24,29 +22,12 @@ if 'custom_chat_history' not in st.session_state:
 if 'diet_chat_history' not in st.session_state:
     st.session_state.diet_chat_history = []
 
-def recipe_image_html(recipe_name: str, image_url: str) -> str:
-    """
-    Return HTML for an image inside an expander. If the image fails to load
-    (or the URL is empty), we show the recipe name text inside the same frame.
-    """
-    safe_name = html.escape(recipe_name)
-    base_div = (
-        "width:150px;height:120px;display:flex;align-items:center;"
-        "justify-content:center;border-radius:8px;overflow:hidden;"
-        "background-color:#f5f5f5;border:1px solid #ddd;font-size:12px;"
-        "text-align:center;padding:4px;margin-bottom:4px;"
-    )
-
-    if not image_url:
-        return f"<div style='{base_div}'>{safe_name}</div>"
-
-    return f"""
-    <div style="{base_div}" data-name="{safe_name}">
-      <img src="{image_url}" alt="{safe_name}"
-           style="width:100%;height:100%;object-fit:cover;"
-           onerror="this.onerror=null;var p=this.parentElement;p.textContent=p.getAttribute('data-name');" />
-    </div>
-    """
+#
+# NOTE: Images have been intentionally removed for deployment reliability.
+# Results are text-only (no external image provider calls).
+#
+# NOTE: Images have been intentionally removed for deployment reliability.
+# Results are text-only (no external image provider calls).
 
 
 class Recommendation:
@@ -75,7 +56,8 @@ class Recommendation:
             # Add cost estimates
             for recipe in recommendations:
                 recipe['estimated_cost'] = estimate_recipe_cost(recipe)
-                recipe['image_link']=find_image(recipe['Name'])
+                # Images removed (text-only UI)
+                pass
 
             # Filter out clearly invalid/non-meal recipes (e.g. sauces, clean-out)
             recommendations = [
@@ -112,11 +94,7 @@ class Display:
                     for recipe in recommendations[rows*row:rows*(row+1)]:                             
                         recipe_name=recipe['Name']
                         expander = st.expander(recipe_name)
-                        recipe_link=recipe['image_link']
-                        recipe_img = recipe_image_html(recipe_name, recipe_link)
                         nutritions_df=pd.DataFrame({value:[recipe[value]] for value in nutrition_values})      
-                        
-                        expander.markdown(recipe_img,unsafe_allow_html=True)
                         
                         # Show estimated cost
                         if 'estimated_cost' in recipe:
