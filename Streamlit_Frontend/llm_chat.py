@@ -6,11 +6,33 @@ No API keys required.
 
 import os
 import warnings
+import io
+import logging
+from contextlib import contextmanager, redirect_stderr
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# Reduce noisy runtime logs in managed deployments (Streamlit Cloud, etc.)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+# Torch can emit recurring stderr logs like:
+# "Examining the path of torch.classes raised: ..."
+# They are harmless but clutter app logs, so we silence stderr only while
+# loading/inferencing the model.
+@contextmanager
+def _silence_torch_stderr():
+    # Best-effort: also reduce torch logger verbosity (some builds use logging)
+    try:
+        logging.getLogger("torch").setLevel(logging.ERROR)
+    except Exception:
+        pass
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        yield
 
 # Global variables to cache the model and tokenizer
 _model = None
@@ -37,8 +59,9 @@ def load_model():
     _device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {_device}")
     
-    # Load tokenizer
-    _tokenizer = AutoTokenizer.from_pretrained(model_name)
+    with _silence_torch_stderr():
+        # Load tokenizer
+        _tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     # Set pad token to eos token if not set
     if _tokenizer.pad_token is None:
@@ -53,7 +76,8 @@ def load_model():
     if _device == "cuda":
         model_kwargs["device_map"] = "auto"
 
-    _model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+    with _silence_torch_stderr():
+        _model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
     
     if _device == "cpu":
         _model = _model.to(_device)
@@ -111,8 +135,8 @@ Current Recommendations:
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1536)
         inputs = {k: v.to(device) for k, v in inputs.items()}
         
-        # Generate
-        with torch.no_grad():
+        # Generate (silence harmless torch stderr noise in cloud logs)
+        with torch.no_grad(), _silence_torch_stderr():
             outputs = model.generate(
                 **inputs,
                 max_new_tokens=256,
