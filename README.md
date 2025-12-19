@@ -153,6 +153,18 @@ docker-compose up -d --build
 
 Then open `http://localhost:8501`. You need Docker Desktop and docker‑compose installed for this option.
 
+## Dynamic images (deployment note)
+
+This project supports **dynamic recipe images**.
+
+- **Recommended (reliable on Streamlit Cloud + Docker/VPS)**: Set an Unsplash API key so the server can fetch images and embed them directly.
+  - Create an Unsplash app and get an access key: `https://unsplash.com/developers`
+  - Set `UNSPLASH_ACCESS_KEY`:
+    - **Docker/VPS**: export it on the server before starting compose (or add it to your compose env).
+    - **Streamlit Cloud**: add it in the app’s **Secrets**.
+
+If `UNSPLASH_ACCESS_KEY` is not set, the app falls back to `source.unsplash.com`, which may be rate-limited/blocked in some deployments.
+
 ## Citation
 ```
 @software{narjis_2024_12507829,
