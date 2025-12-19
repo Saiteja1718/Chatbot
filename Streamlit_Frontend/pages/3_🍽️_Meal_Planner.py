@@ -523,19 +523,24 @@ def display_meal_plan():
     # Display by day
     for day, meals in meal_plan.items():
         with st.expander(f"📅 {day}", expanded=True):
-            # Create columns for each meal
-            cols = st.columns(len(meals))
+            # Filter invalid/non-meal items first (prevents st.columns(0) crashes)
+            visible_meals = {
+                meal_name: recipe
+                for meal_name, recipe in (meals or {}).items()
+                if is_valid_recipe_name((recipe or {}).get("Name", ""))
+            }
+
+            if not visible_meals:
+                st.info("No suitable meals found for this day. Please regenerate your meal plan.")
+                continue
+
+            # Create columns for each visible meal
+            cols = st.columns(len(visible_meals))
             
-            for col, (meal_name, recipe) in zip(cols, meals.items()):
+            for col, (meal_name, recipe) in zip(cols, visible_meals.items()):
                 with col:
                     st.markdown(f"**{meal_name.replace('_', ' ').title()}**")
                     recipe_name = recipe.get('Name', '')
-                    if not is_valid_recipe_name(recipe_name):
-                        # Safety net: if an invalid/non-meal recipe slipped into an older cached plan,
-                        # hide it from the UI and ask the user to regenerate.
-                        st.markdown("*No suitable recipe found*")
-                        st.caption("This item was filtered out. Please regenerate your meal plan.")
-                        continue
                     
                     recipe_link = recipe.get('image_link', '')
                     render_recipe_image(recipe_name, recipe_link)
