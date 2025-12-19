@@ -455,7 +455,6 @@ def generate_meal_plan_with_llm():
                                     )
                             
                             if selected_recipe:
-                                selected_recipe['image_link'] = find_image(selected_recipe['Name'])
                                 meal_plan[f'Day {day}'][meal_name] = selected_recipe
                             else:
                                 if SHOW_GENERATION_DEBUG_MESSAGES:
